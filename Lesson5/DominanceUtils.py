@@ -79,20 +79,19 @@ def get_dominators(json_data):
     for func in local_json_data['functions']:
         basic_blocks, predeseccors, successors = get_build_cfg(func)
 
-        doms = [set() for i in range(len(basic_blocks))]
-        for i in range(len(basic_blocks)):
-            doms[i].add(i)
+        doms = [set([j for j in range(len(basic_blocks))]) for i in range(len(basic_blocks))]
+        # doms = [set() for i in range(len(basic_blocks))]
+        doms[0] = set([0])
         doms_new = [set() for i in range(len(basic_blocks))]
 
         continue_flag = True
         while continue_flag:
-            # doms = copy.deepcopy(doms_new)
-            doms_new = [set() for i in range(len(basic_blocks))]
-            for i in range(len(basic_blocks)):
+            doms_new = copy.deepcopy(doms)
+            for i in range(1, len(basic_blocks)):
                 if i in predeseccors and len(predeseccors[i]) != 0:
                     doms_new[i] = copy.deepcopy(doms[predeseccors[i][0]])
                     for j in range(1, len(predeseccors[i])):
-                        doms_new[i] = doms_new[i].intersection(doms[predeseccors[i][j]])
+                        doms_new[i] = doms_new[i].intersection(doms_new[predeseccors[i][j]])
                 doms_new[i].add(i)
 
 
@@ -193,7 +192,7 @@ def make_dom_tree_graphs(doms_tree_all, doms_all, basic_blocks_all, predeseccors
     return dot
 
 def make_dom_frontier_graphs(dominance_frontier_all, doms_all, basic_blocks_all):
-    dot = graphviz.Digraph(comment='Dominance Frontier')
+    dot = graphviz.Digraph(comment='Dominance Frontier', strict=True)
     for func_num, func_blocks in enumerate(basic_blocks_all):
         for i, block in enumerate(func_blocks):
             node_text = "Block number: " + str(i) + '\n'
@@ -218,16 +217,58 @@ def make_dom_frontier_graphs(dominance_frontier_all, doms_all, basic_blocks_all)
 
     return dot
 
+def test_dominators(doms_all, basic_blocks_all, predeseccors_all, successors_all):
+    for func_num, func_blocks in enumerate(basic_blocks_all):
+        doms = doms_all[func_num]
+        predeseccors = predeseccors_all[func_num]
+        successors = successors_all[func_num]
+        paths = [[] for i in range(len(func_blocks))]
+        
+        current_paths = []
+        current_paths.append([0])
+        while len(current_paths) > 0:
+            path = current_paths.pop()
+            node = path[-1]
 
+            if node in successors:
+                for succ in successors[node]:
+                    new_path = path.copy()
+                    new_path.append(succ)
+                    paths[succ].append(new_path)
+                    if succ not in path:
+                        current_paths.append(new_path)
+                        
+
+        for i in range(len(func_blocks)):
+            if len(paths[i]) != 0:
+                doms_i = paths[i][0]
+                if i == 0:
+                    doms_i = [0]
+                for path in paths[i]:
+                    doms_i = set(doms_i).intersection(path)
+                if doms_i != doms[i]:
+                    # print('Dominators for block ', i, ' are not correct')
+                    # print('Expected: ', doms[i])
+                    # print('Actual: ', doms_i)
+                    return False
+    return True
+
+
+            
 
 d = json.load(sys.stdin)
 doms_all, basic_blocks_all, predeseccors_all, successors_all = get_dominators(d)
+correct = test_dominators(doms_all, basic_blocks_all, predeseccors_all, successors_all)
+if not correct:
+    # assert False
+    print("Incorrect dominators")
+    exit(0)
 doms_tree_all = build_dominator_tree(doms_all, basic_blocks_all)
 dominance_frontier_all = build_dominance_frontier(doms_tree_all, successors_all)
-print(json.dumps(d))
+# print(json.dumps(d))
 dot = make_graphs(doms_all, basic_blocks_all, predeseccors_all)
 dom_tree_graph = make_dom_tree_graphs(doms_tree_all, doms_all, basic_blocks_all, predeseccors_all)
 dom_frontier_graph = make_dom_frontier_graphs(dominance_frontier_all, doms_all, basic_blocks_all)
-dom_frontier_graph.render('./dom_frontier.gv', view=True)
-dom_tree_graph.render('./dom_tree.gv', view=True)
-dot.render('./cfg.gv', view=True)
+# dom_frontier_graph.render('./dom_frontier.gv', view=True)
+# dom_tree_graph.render('./dom_tree.gv', view=True)
+# dot.render('./cfg.gv', view=True)
