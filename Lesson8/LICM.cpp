@@ -60,7 +60,10 @@ struct SkeletonPass : public PassInfoMixin<SkeletonPass> {
                                         if (LoopInvariantSet[&Inst]) {
                                             num_new_invariant++;
                                         }
-                                        else if (Inst.isSafeToRemove() && !Inst.mayHaveSideEffects() && !isa<PHINode>(&Inst)) {
+                                        else if (Inst.isSafeToRemove() && !Inst.mayHaveSideEffects() && !isa<PHINode>(&Inst) && 
+                                                    !(isa<GetElementPtrInst>(&Inst) && (dyn_cast<GetElementPtrInst>(&Inst))->isInBounds()) &&
+                                                    !(isa<BinaryOperator>(&Inst) && (dyn_cast<BinaryOperator>(&Inst)->hasNoUnsignedWrap())) &&
+                                                    !(isa<BinaryOperator>(&Inst) && (dyn_cast<BinaryOperator>(&Inst)->hasNoSignedWrap()))){
                                             bool is_loop_invariant = true;
                                             for (auto &Op : Inst.operands()) {
                                                 if (auto *OpInst = dyn_cast<Instruction>(Op)) {
